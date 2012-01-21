@@ -1,0 +1,14 @@
+Package: localepurge-tiny
+Version: 1.0
+Section: admin
+Priority: optional
+Architecture: all
+Maintainer: Mikael Ståldal <mikael@staldal.nu>
+Depends: bash (>=4.0) | dash (>=0.5), coreutils (>=8.0)
+Conflicts: localepurge
+Description: Reclaim disk space removing unneeded localizations
+ Like localepurge with these differences:
+ - minimal dependencies
+ - removes all man pages
+ - no configuration, always removes all locales except "en" (English)
+

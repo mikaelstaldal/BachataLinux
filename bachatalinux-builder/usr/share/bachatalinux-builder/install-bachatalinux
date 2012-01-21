@@ -1,0 +1,148 @@
+#!/bin/bash
+
+# Install Bachata Linux
+# Copyright (C) 2012 Mikael Ståldal
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+BUNDLE=$1
+if [ ! ${BUNDLE} ]; then
+    BUNDLE="bachatalinux.cgz"
+fi
+if [ ! -f ${BUNDLE} ]; then
+    if [ ! $1 ]; then
+        echo "Usage: BUNDLE.cgz"
+    else        
+        echo "Cannot find ${BUNDLE}"
+    fi
+    exit 1
+fi
+
+MYDEV=$2
+TARGET=$3
+
+if [ ! ${TARGET} ]; then
+    REMOVE_TARGET=1
+    TARGET=`mktemp -d`
+fi
+
+echo
+read -p "Nearest Debian mirror URL: " -e -i "http://ftp.us.debian.org/debian/" MIRROR
+echo
+read -p "Hostname for new system: " -e HOSTNAME
+
+declare -A DISKS
+for dev in /dev/*; do
+	if [ "$dev" != "${MYDEV}" ]; then
+        if [ -b $dev ]; then
+            if [ ! -L $dev ]; then
+                if [ -d /dev/disk/by-id ]; then
+                    label=""
+                    for name in /dev/disk/by-id/*; do
+                        this_dev=`readlink -f ${name}`
+                     	if [ $this_dev = $dev ] ; then
+                         	label="$label `basename ${name}`"
+                     	fi
+                    done            
+                else
+                    label=" "
+                fi
+            	DISKS[$dev]="${label}" 
+            fi
+        fi
+	fi
+done
+
+echo
+echo "Available disks:"
+echo
+for disk in "${!DISKS[@]}"; do
+    echo "${disk} -${DISKS[$disk]}"
+done
+unset DISKS
+echo
+read -p "Disk to install on: " -e -i "/dev/" DISK
+
+read -p "Partition disk? (y,N) " -e PART_DISK
+if [ "${PART_DISK}" = "y" ] ; then
+	fdisk ${DISK}
+	cat /lib/mbr.bin >${DISK}
+	read -p "Partition to install on: " -e -i "${DISK}1" DISK
+fi
+
+read -p "File system to use (ext2, ext3, ext4): " -e -i "ext2" FSTYPE
+
+mke2fs -F -L ${HOSTNAME} -t ${FSTYPE} ${DISK}
+mount -t ${FSTYPE} ${DISK} ${TARGET}
+if [ $? != 0 ] ; then
+    exit 2
+fi
+
+echo
+echo "Copying files..."
+gzip -cd <${BUNDLE} | (cd ${TARGET} && cpio -i)
+
+cat <<EOT >${TARGET}/etc/hostname
+${HOSTNAME}
+EOT
+
+cat <<EOT >${TARGET}/etc/apt/sources.list
+deb ${MIRROR} squeeze main
+deb-src ${MIRROR} squeeze main
+
+deb http://security.debian.org/ squeeze/updates main
+deb-src http://security.debian.org/ squeeze/updates main
+
+# squeeze-updates, previously known as 'volatile'
+deb ${MIRROR} squeeze-updates main
+deb-src ${MIRROR} squeeze-updates main
+EOT
+
+echo
+mkdir -p ${TARGET}/boot/extlinux
+extlinux --install ${TARGET}/boot/extlinux
+
+UUID=`blkid -o value -s UUID ${DISK}`
+
+KERNEL_FILE=`basename ${TARGET}/boot/vmlinuz-*`
+INITRD_FILE=`basename ${TARGET}/boot/initrd.img-*`
+
+cat <<EOT >${TARGET}/boot/extlinux/syslinux.cfg
+default linux
+label linux
+    kernel /boot/${KERNEL_FILE}
+    append initrd=/boot/${INITRD_FILE} root=UUID=${UUID} ro quiet
+EOT
+
+cat <<EOT >>${TARGET}/etc/fstab
+UUID=${UUID}        /               ${FSTYPE}    errors=remount-ro     0       1
+EOT
+
+echo
+chroot ${TARGET} /usr/sbin/dpkg-reconfigure --frontend=teletype tzdata
+
+echo
+echo "Setting root password"
+until chroot ${TARGET} passwd root; do true; done
+
+umount ${TARGET}
+
+if [ ${REMOVE_TARGET} ]; then
+    rmdir -- ${TARGET}
+fi
+
+echo
+echo "Installation finished"
+echo "You need to run \"apt-get update\" before you can use apt"
+

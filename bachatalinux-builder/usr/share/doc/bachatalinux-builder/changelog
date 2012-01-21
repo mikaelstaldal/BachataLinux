@@ -1,0 +1,24 @@
+bachatalinux-builder (0.4)
+
+  * Install disk image.
+
+ -- Mikael Ståldal <mikael@staldal.nu>  2012-01-16
+
+bachatalinux-builder (0.3)
+
+  * Clean up scripts a bit.
+
+ -- Mikael Ståldal <mikael@staldal.nu>  2012-01-14
+
+bachatalinux-builder (0.2)
+
+  * Install script for KVM/QEMU.
+
+ -- Mikael Ståldal <mikael@staldal.nu>  2012-01-10
+
+bachatalinux-builder (0.1)
+
+  * Initial version.
+
+ -- Mikael Ståldal <mikael@staldal.nu>  2012-01-09
+

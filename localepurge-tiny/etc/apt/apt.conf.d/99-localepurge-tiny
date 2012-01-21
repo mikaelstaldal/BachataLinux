@@ -1,0 +1,6 @@
+// Get rid of unneeded locale files after each package installation
+
+DPkg
+{
+Post-Invoke {"if [ -x /usr/sbin/localepurge-tiny ]; then /usr/sbin/localepurge-tiny; else exit 0; fi";};
+};

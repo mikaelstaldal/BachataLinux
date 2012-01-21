@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# Install Bachata Linux in KVM/QEMU
+# Copyright (C) 2012 Mikael Ståldal
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+BUNDLE=$1
+DISK=$2
+if [ ! ${DISK} ]; then
+    echo "Usage: BUNDLE.cgz DISKIMAGE.img"
+    exit 1
+fi
+if [ ! -f ${BUNDLE} ]; then
+    echo "Cannot find ${BUNDLE}"
+    exit 1
+fi
+
+if [ `id -u` -ne 0 ]; then
+	echo "You must be root"
+	exit 1
+fi
+
+echo "Installing Bachata Linux from ${BUNDLE} to ${DISK}..."
+echo
+read -p "Nearest Debian mirror URL: " -e -i "http://ftp.us.debian.org/debian/" MIRROR
+read -p "Hostname: " -e HOSTNAME
+read -p "Disk size: " -e -i "160M" SIZE
+read -p "File system to use (ext2, ext3, ext4): " -e -i "ext2" FSTYPE
+
+dd if=/dev/zero of=${DISK} bs=${SIZE} count=1
+
+mke2fs -F -L ${HOSTNAME} -t ${FSTYPE} ${DISK}
+TARGET=`mktemp -d`
+mount -t ${FSTYPE} ${DISK} ${TARGET}
+if [ $? != 0 ] ; then
+    exit 2
+fi
+
+echo
+echo "Copying files..."
+gzip -cd <${BUNDLE} | (cd ${TARGET} && cpio -i)
+
+cat <<EOT >${TARGET}/etc/hostname
+${HOSTNAME}
+EOT
+
+cat <<EOT >${TARGET}/etc/apt/sources.list
+deb ${MIRROR} squeeze main
+deb-src ${MIRROR} squeeze main
+
+deb http://security.debian.org/ squeeze/updates main
+deb-src http://security.debian.org/ squeeze/updates main
+
+# squeeze-updates, previously known as 'volatile'
+deb ${MIRROR} squeeze-updates main
+deb-src ${MIRROR} squeeze-updates main
+EOT
+
+echo
+mkdir -p ${TARGET}/boot/extlinux
+extlinux --install ${TARGET}/boot/extlinux
+
+UUID=`blkid -o value -s UUID ${DISK}`
+
+KERNEL_FILE=`basename ${TARGET}/boot/vmlinuz-*`
+INITRD_FILE=`basename ${TARGET}/boot/initrd.img-*`
+
+cat <<EOT >${TARGET}/boot/extlinux/syslinux.cfg
+default linux
+label linux
+    kernel /boot/${KERNEL_FILE}
+    append initrd=/boot/${INITRD_FILE} root=UUID=${UUID} ro quiet console=ttyS0
+EOT
+
+cat <<EOT >>${TARGET}/etc/fstab
+UUID=${UUID}        /               ${FSTYPE}    errors=remount-ro     0       1
+EOT
+
+cat <<EOT |ed -s ${TARGET}/etc/inittab >/dev/null
+/ttyS0/
+s/#//
+/tty1/
+s/^/#/
+wq
+EOT
+
+echo
+chroot ${TARGET} /usr/sbin/dpkg-reconfigure --frontend=teletype tzdata
+
+echo
+echo "Setting root password"
+until chroot ${TARGET} passwd root; do true; done
+
+umount ${TARGET}
+
+rmdir -- ${TARGET}
+
+read -p "RAM size (in MB): " -e -i "64" RAM
+if kvm-ok; then
+    VIRT_TYPE=kvm
+else
+    VIRT_TYPE=qemu
+fi
+
+virt-install --connect qemu:///system -n ${HOSTNAME} -r ${RAM} --os-type linux --os-variant debiansqueeze --import --disk path=${DISK} --network=network:default --graphics none --noautoconsole --noreboot --virt-type ${VIRT_TYPE}
+
+echo
+echo "Installation finished"
+echo "You need to run \"apt-get update\" before you can use apt"
+

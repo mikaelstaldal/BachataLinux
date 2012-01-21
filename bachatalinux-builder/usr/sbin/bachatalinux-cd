@@ -1,0 +1,165 @@
+#!/bin/bash
+
+# Build a Bachata Linux install CD image
+# Copyright (C) 2012 Mikael Ståldal
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+VERSION="1.0"
+ARCH="i386"
+
+usage() 
+{
+    echo "Usage:"
+	cat <<EOT
+      --help                   display this help and exit
+      --mirror=MIRROR          Debian mirror URL, see http://www.debian.org/mirror/list (required)
+      --bundle=bundle.cgz      bundle to use
+EOT
+    exit 1
+}
+
+OPTIONS=`getopt --options "" --longoptions help,mirror:,bundle: -n 'bachatalinux-cd' -- "$@"`
+if [ $? != 0 ]; then
+    exit 1
+fi
+eval set -- "$OPTIONS"
+while true ; do
+	case "$1" in
+		--help) usage ;;
+		--mirror) MIRROR="$2" ; shift 2 ;;
+		--bundle) BUNDLE="$2" ; shift 2 ;;
+		--) shift ; break ;;
+		*) echo "Internal error!" ; exit 1 ;;
+	esac
+done
+
+if [ ! ${MIRROR} ]; then usage; fi
+if [ ! ${BUNDLE} ]; then 
+    BUNDLE="bachatalinux-${VERSION}-${ARCH}.cgz"
+fi
+
+if [ ! -f ${BUNDLE} ]; then
+    echo "Cannot find ${BUNDLE}"
+    exit 1
+fi
+
+if [ `id -u` -ne 0 ]; then
+	echo "You must be root"
+	exit 1
+fi
+
+echo "Creating Bachata Linux install CD..."
+
+PWD=`pwd`
+ISO_FS=`mktemp -d --tmpdir=${PWD}`
+chmod 0555 ${ISO_FS}
+mkdir ${ISO_FS}/isolinux
+
+cp ${BUNDLE} ${ISO_FS}/bachatalinux.cgz
+
+INSTALL_FS=`mktemp -d --tmpdir=${PWD}`
+
+gzip -cd <${BUNDLE} | (cd ${INSTALL_FS} && cpio -i --quiet)
+
+cp ${INSTALL_FS}/boot/vmlinuz-* ${ISO_FS}/isolinux/vmlinuz
+
+ROOT_FS=`mktemp -d --tmpdir=${PWD}`
+
+gzip -cd <${INSTALL_FS}/boot/initrd.img-* | (cd ${ROOT_FS} && cpio -i --quiet)
+
+cp ${INSTALL_FS}/bin/bash ${ROOT_FS}/bin/
+cp ${INSTALL_FS}/usr/bin/basename ${ROOT_FS}/bin/
+cp ${INSTALL_FS}/bin/readlink ${ROOT_FS}/bin/
+cp ${INSTALL_FS}/sbin/fdisk ${ROOT_FS}/sbin/
+cp ${INSTALL_FS}/sbin/mke2fs ${ROOT_FS}/sbin/
+cp ${INSTALL_FS}/etc/mke2fs.conf ${ROOT_FS}/etc/
+cp ${INSTALL_FS}/lib/libe2p.so.2.3 ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libe2p.so.2.3 libe2p.so.2)
+cp ${INSTALL_FS}/lib/libext2fs.so.2.4 ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libext2fs.so.2.4 libext2fs.so.2)
+cp ${INSTALL_FS}/lib/libncurses.so.5.7 ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libncurses.so.5.7 libncurses.so.5)
+cp ${INSTALL_FS}/lib/libtic.so.5.7 ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libtic.so.5.7 libtic.so.5)
+cp ${INSTALL_FS}/lib/libcom_err.so.2.1 ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libcom_err.so.2.1 libcom_err.so.2)
+cp ${INSTALL_FS}/lib/libpthread-2.11.2.so ${ROOT_FS}/lib/
+(cd ${ROOT_FS}/lib && ln -s libpthread-2.11.2.so libpthread.so.0)
+
+debootstrap --variant=minbase --no-resolve-deps \
+	--include=extlinux,syslinux-common,eject squeeze ${INSTALL_FS} ${MIRROR}
+cp ${INSTALL_FS}/usr/sbin/extlinux ${ROOT_FS}/sbin/
+cp ${INSTALL_FS}/usr/lib/syslinux/mbr.bin ${ROOT_FS}/lib/
+cp ${INSTALL_FS}/usr/bin/eject ${ROOT_FS}/bin/
+
+rm -rf -- ${INSTALL_FS}
+
+cp /usr/share/bachatalinux-builder/install-bachatalinux-from-media ${ROOT_FS}/sbin/
+chmod +x ${ROOT_FS}/sbin/install-bachatalinux-from-media
+cp /usr/share/bachatalinux-builder/install-bachatalinux ${ROOT_FS}/sbin/
+chmod +x ${ROOT_FS}/sbin/install-bachatalinux
+cp /usr/share/bachatalinux-builder/install-bachatalinux ${ISO_FS}/
+chmod +x ${ISO_FS}/install-bachatalinux
+
+cat <<EOT |ed -s ${ROOT_FS}/init >/dev/null
+/Loading, please wait/
+s/^/# /
+/maybe_break premount/
+;d
+a
+exec /sbin/install-bachatalinux-from-media iso9660
+.
+wq
+EOT
+
+mkdir ${ROOT_FS}/media
+mkdir ${ROOT_FS}/mnt
+
+touch ${ROOT_FS}/etc/mtab
+
+(cd ${ROOT_FS} && find . -type l -printf '%p %Y\n' | sed -n 's/ [LN]$//p' | xargs -rL1 rm -f)
+(cd ${ROOT_FS} && find . | cpio --quiet -R 0:0 -o -H newc | gzip -9) >${ISO_FS}/isolinux/initrd.img
+
+rm -rf -- ${ROOT_FS}
+
+cp /usr/lib/syslinux/isolinux.bin ${ISO_FS}/isolinux/
+
+cat <<EOT >${ISO_FS}/isolinux/isolinux.cfg
+default linux
+label linux
+    kernel vmlinuz
+    append initrd=initrd.img quiet
+EOT
+
+cat <<EOT >${ISO_FS}/README
+Bachata Linux ${VERSION} for ${ARCH} (based on Debian GNU/Linux 6.0)
+
+ * Home page: http://www.bachatalinux.net/
+
+Install Bachata Linux by booting from this bootable CD-ROM.
+Or if you are already running a Linux system you may try to run 
+the script install_bachatalinux as root.
+EOT
+
+ISO_IMAGE="bachatalinux-${VERSION}-${ARCH}.iso"
+
+genisoimage -o "${ISO_IMAGE}" -b isolinux/isolinux.bin -c isolinux/boot.cat \
+    -no-emul-boot -boot-load-size 4 -boot-info-table -l -input-charset default \
+    -V BachataLinux -A "Bachata Linux" ${ISO_FS}
+
+rm -rf -- ${ISO_FS}
+
+echo "Finished generating ISO image ${ISO_IMAGE}"
+

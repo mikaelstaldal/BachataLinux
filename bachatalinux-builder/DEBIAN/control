@@ -1,0 +1,12 @@
+Package: bachatalinux-builder
+Version: 0.4
+Section: admin
+Priority: optional
+Architecture: all
+Maintainer: Mikael Ståldal <mikael@staldal.nu>
+Depends: debootstrap, debian-archive-keyring, bash (>=4.0), coreutils (>=8.0), util-linux (>=2.0), ed, cpio, genisoimage (>=1.1), syslinux-common (>=4.0), extlinux (>=4.0)
+Description: Minimal bootable Debian based Linux system
+ Bachata Linux is a minimal bootable Debian based Linux system
+ with fully functional bash shell, TCP/IP networking with DHCP client
+ and APT.
+
