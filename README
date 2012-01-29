@@ -1,6 +1,6 @@
 A minimal Debian based Linux system with fully functional bash shell (with GNU coreutils, not BusyBox), TCP/IP networking with DHCP client and APT setup to be able to install any package from the Debian repositories.
 
-The installation media is 68 MB, needs no Internet connection and the installation is really quick. The installed system will use 160 MB disk space. (As a comparison, Debian 6.0 "netinst" media is 191 MB, takes long time to install and will use at least 330 MB disk space after installation.)
+The installation media is less than 128 MB, needs no Internet connection and the installation is really quick. The installed system will use 160 MB disk space. (As a comparison, Debian 6.0 takes long time to install and will use at least 330 MB disk space after installation.)
 
 If you just want to download and install, please use the download links on http://www.bachatalinux.net/
 
