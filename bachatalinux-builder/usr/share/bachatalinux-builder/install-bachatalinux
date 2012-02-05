@@ -16,13 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-BUNDLE=$1
-if [ ! ${BUNDLE} ]; then
-    BUNDLE="bachatalinux.cgz"
+INSTALL_DIR=$1
+if [ ! ${INSTALL_DIR} ]; then
+    INSTALL_DIR="."
 fi
+BUNDLE=${INSTALL_DIR}/bachatalinux.cgz
 if [ ! -f ${BUNDLE} ]; then
     if [ ! $1 ]; then
-        echo "Usage: BUNDLE.cgz"
+        echo "Usage: INSTALL_DIR"
     else        
         echo "Cannot find ${BUNDLE}"
     fi

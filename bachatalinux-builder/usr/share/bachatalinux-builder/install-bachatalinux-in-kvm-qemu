@@ -16,12 +16,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-BUNDLE=$1
+INSTALL_DIR=$1
 DISK=$2
 if [ ! ${DISK} ]; then
-    echo "Usage: BUNDLE.cgz DISKIMAGE.img"
+    echo "Usage: INSTALL_DIR DISKIMAGE.img"
     exit 1
 fi
+
+BUNDLE=${INSTALL_DIR}/bachatalinux.cgz
 if [ ! -f ${BUNDLE} ]; then
     echo "Cannot find ${BUNDLE}"
     exit 1
@@ -32,10 +34,11 @@ if [ `id -u` -ne 0 ]; then
 	exit 1
 fi
 
-echo "Installing Bachata Linux from ${BUNDLE} to ${DISK}..."
+echo "Installing Bachata Linux to ${DISK}..."
 echo
 read -p "Nearest Debian mirror URL: " -e -i "http://ftp.us.debian.org/debian/" MIRROR
 read -p "Hostname: " -e HOSTNAME
+read -p "RAM size (in MB): " -e -i "64" RAM
 read -p "Disk size: " -e -i "160M" SIZE
 read -p "File system to use (ext2, ext3, ext4): " -e -i "ext2" FSTYPE
 
@@ -107,7 +110,6 @@ umount ${TARGET}
 
 rmdir -- ${TARGET}
 
-read -p "RAM size (in MB): " -e -i "64" RAM
 if kvm-ok; then
     VIRT_TYPE=kvm
 else
@@ -118,5 +120,6 @@ virt-install --connect qemu:///system -n ${HOSTNAME} -r ${RAM} --os-type linux -
 
 echo
 echo "Installation finished"
+echo "Start with \"virsh start ${HOSTNAME}\" and connect with \"virsh console ${HOSTNAME}\""
 echo "You need to run \"apt-get update\" before you can use apt"
 

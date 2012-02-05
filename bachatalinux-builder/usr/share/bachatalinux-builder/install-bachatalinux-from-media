@@ -51,7 +51,7 @@ echo "Installing Bachata Linux..."
 
 until mount_media ${MEDIAROOT}; do sleep 1; done
 
-install-bachatalinux ${MEDIAROOT}/bachatalinux.cgz ${MYDEV} ${TARGET}
+install-bachatalinux ${MEDIAROOT} ${MYDEV} ${TARGET}
 if [ $? != 0 ]; then
 	read -p "Unable to mount target, press ENTER to reboot and try again"
 	umount ${MEDIAROOT}

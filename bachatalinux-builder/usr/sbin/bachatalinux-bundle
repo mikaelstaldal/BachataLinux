@@ -25,7 +25,7 @@ usage()
 	cat <<EOT
       --help                   display this help and exit
       --mirror=MIRROR          Debian mirror URL, see http://www.debian.org/mirror/list (required)
-      --kernel=pkg             kernel package to install (default: linux-image-686)
+      --kernel=kernel          kernel to install
       --include-apt=pkg1,pkg2  additional packages to install using APT, will automatically install dependencies
       --include-deb=filename   additional packages to install from .deb file (can be repeated), will NOT install dependencies
 EOT
@@ -41,29 +41,31 @@ while true ; do
 	case "$1" in
 		--help) usage ;;
 		--mirror) MIRROR="$2" ; shift 2 ;;
-		--kernel) KERNEL_PKG=",$2" ; shift 2 ;;
+        --kernel) KERNEL="$2" ; shift 2 ;;
 		--include-apt) INCLUDE_APT="${INCLUDE_APT},$2" ; shift 2 ;;
 		--include-deb) INCLUDE_DEB="${INCLUDE_DEB} $2" ; shift 2 ;;
 		--) shift ; break ;;
-		*) echo "Internal error!" ; exit 1 ;;
+		*) echo "Internal error: $1" ; exit 1 ;;
 	esac
 done
 if [ ! ${MIRROR} ]; then usage; fi
-if [ ! ${KERNEL_PKG} ]; then KERNEL_PKG=",linux-image-686"; fi
+if [ ! ${KERNEL} ]; then usage; fi
 
 if [ `id -u` -ne 0 ]; then
 	echo "You must be root"
 	exit 1
 fi
 
-echo "Creating Bachata Linux bundle..."
+echo "Creating Bachata Linux ${VERSION} bundle for ${ARCH} with kernel ${KERNEL}..."
 
 PWD=`pwd`
 TARGET=`mktemp -d --tmpdir=${PWD}`
 
 INCLUDE_DEB="${INCLUDE_DEB} /usr/share/bachatalinux-builder/localepurge-tiny_1.0_all.deb"
 
-debootstrap --variant=minbase --include=netbase,ifupdown,net-tools,isc-dhcp-client,acpi-support-base,acpid${KERNEL_PKG}${INCLUDE_APT} squeeze ${TARGET} ${MIRROR}
+debootstrap --variant=minbase \
+    --include=netbase,ifupdown,net-tools,isc-dhcp-client,acpi-support-base,acpid,linux-image-${KERNEL},${INCLUDE_APT} \
+    squeeze ${TARGET} ${MIRROR}
 if [ $? != 0 ]; then
     echo "Installation failed!"
     exit 1
@@ -79,9 +81,7 @@ wq
 EOT
 
 for deb in ${INCLUDE_DEB}; do
-    cp ${deb} ${TARGET}/var/cache/apt/archives
-    chroot ${TARGET} dpkg -i /var/cache/apt/archives/`basename ${deb}`
-    rm ${TARGET}/var/cache/apt/archives/`basename ${deb}`
+    dpkg --root=${TARGET} -i ${deb}
 done
 
 rm -rf ${TARGET}/usr/share/man/*
@@ -163,7 +163,7 @@ EOT
 
 chroot ${TARGET} localepurge-tiny
 
-BUNDLE="bachatalinux-${VERSION}-${ARCH}.cgz"
+BUNDLE="bachatalinux-${VERSION}-${ARCH}-${KERNEL}.cgz"
 
 (cd ${TARGET} && find . -type l -printf '%p %Y\n' | sed -n 's/ [LN]$//p' | xargs -rL1 rm -f)
 (cd ${TARGET} && find . | cpio --quiet -o -H newc | gzip -9) >${BUNDLE}
