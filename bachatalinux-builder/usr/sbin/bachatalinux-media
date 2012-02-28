@@ -17,7 +17,6 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 VERSION="1.0"
-ARCH="i386"
 
 usage() 
 {
@@ -25,13 +24,14 @@ usage()
 	cat <<EOT
       --help                   display this help and exit
       --mirror=MIRROR          Debian mirror URL, see http://www.debian.org/mirror/list (required)
-      --kernel=kernel          kernel to install
+      --arch=ARCH              architecture
+      --kernel=KERNEL          kernel to install
       --cdrom                  build CD-ROM image
 EOT
     exit 1
 }
 
-OPTIONS=`getopt --options "" --longoptions help,mirror:,kernel:,cdrom -n 'bachatalinux-media' -- "$@"`
+OPTIONS=`getopt --options "" --longoptions help,mirror:,arch:,kernel:,cdrom -n 'bachatalinux-media' -- "$@"`
 if [ $? != 0 ]; then
     exit 1
 fi
@@ -40,7 +40,8 @@ while true ; do
 	case "$1" in
 		--help) usage ;;
 		--mirror) MIRROR="$2" ; shift 2 ;;
-        --kernel) KERNEL="$2" ; shift 2 ;;
+	        --arch) ARCH="$2" ; shift 2 ;;
+	        --kernel) KERNEL="$2" ; shift 2 ;;
 		--cdrom) CDROM=true ; shift 1 ;;
 		--) shift ; break ;;
 		*) echo "Internal error: $1" ; exit 1 ;;
@@ -48,9 +49,18 @@ while true ; do
 done
 
 if [ ! ${MIRROR} ]; then usage; fi
-if [ ! ${KERNEL} ]; then usage; fi
+if [ ! ${ARCH} ]; then usage; fi
+if [ ! ${KERNEL} ]; then 
+    KERNEL=${ARCH}
+fi
 
-BUNDLE="bachatalinux-${VERSION}-${ARCH}-${KERNEL}.cgz"
+if [ ${ARCH} = ${KERNEL} ]; then
+    ARCH_KERNEL=${ARCH}
+else
+    ARCH_KERNEL=${ARCH}-${KERNEL}
+fi
+
+BUNDLE="bachatalinux-${VERSION}-${ARCH_KERNEL}.cgz"
 
 if [ ! -f ${BUNDLE} ]; then
     echo "Cannot find ${BUNDLE}"
@@ -62,24 +72,24 @@ if [ `id -u` -ne 0 ]; then
 	exit 1
 fi
 
-echo "Creating Bachata Linux ${VERSION} install media for ${ARCH} with kernel ${KERNEL}..."
+echo "Creating Bachata Linux ${VERSION} install media for ${ARCH_KERNEL}..."
 
 PWD=`pwd`
 IMAGE_FS=`mktemp -d --tmpdir=${PWD}`
 
 if [ ${CDROM} ]; then
-    DISK_IMAGE="bachatalinux-${VERSION}-${ARCH}-${KERNEL}.iso"
+    DISK_IMAGE="bachatalinux-${VERSION}-${ARCH_KERNEL}.iso"
     FSTYPE="iso9660"
     BOOT_DIR=${IMAGE_FS}/isolinux
     chmod 0555 ${IMAGE_FS}
     mkdir ${BOOT_DIR}
 else
-    DISK_IMAGE="bachatalinux-${VERSION}-${ARCH}-${KERNEL}.img"
+    DISK_IMAGE="bachatalinux-${VERSION}-${ARCH_KERNEL}.img"
     FSTYPE="ext2"
     BOOT_DIR=${IMAGE_FS}/boot
     dd if=/dev/zero of=${DISK_IMAGE} bs=1M count=120
     mke2fs -F -L "BachataLinux" -t ext2 ${DISK_IMAGE}
-    mount -t ext2 ${DISK_IMAGE} ${IMAGE_FS}
+    mount -t ext2 -o loop ${DISK_IMAGE} ${IMAGE_FS}
     if [ $? != 0 ] ; then
         exit 2
     fi
@@ -177,7 +187,7 @@ EOT
 fi
 
 cat <<EOT >${IMAGE_FS}/README
-Bachata Linux ${VERSION} for ${ARCH} with kernel ${KERNEL} (based on Debian GNU/Linux 6.0)
+Bachata Linux ${VERSION} for ${ARCH_KERNEL} (based on Debian GNU/Linux 6.0)
 
  * Home page: http://www.bachatalinux.net/
 

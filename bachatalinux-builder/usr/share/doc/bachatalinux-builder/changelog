@@ -1,3 +1,10 @@
+bachatalinux-builder (1.1)
+
+  * Support amd64.
+  * Do proper loop mount.
+
+ -- Mikael Ståldal <mikael@staldal.nu>  2012-02-27
+
 bachatalinux-builder (1.0)
 
   * Make scripts more DRY.
