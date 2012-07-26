@@ -36,7 +36,7 @@ fi
 
 echo "Installing Bachata Linux to ${DISK}..."
 echo
-read -p "Nearest Debian mirror URL: " -e -i "http://ftp.us.debian.org/debian/" MIRROR
+read -p "Nearest Debian mirror URL: " -e -i "http://http.debian.net/debian" MIRROR
 read -p "Hostname: " -e HOSTNAME
 read -p "RAM size (in MB): " -e -i "64" RAM
 read -p "Disk size: " -e -i "160M" SIZE

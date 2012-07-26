@@ -39,7 +39,7 @@ if [ ! ${TARGET} ]; then
 fi
 
 echo
-read -p "Nearest Debian mirror URL: " -e -i "http://ftp.us.debian.org/debian/" MIRROR
+read -p "Nearest Debian mirror URL: " -e -i "http://http.debian.net/debian" MIRROR
 echo
 read -p "Hostname for new system: " -e HOSTNAME
 
